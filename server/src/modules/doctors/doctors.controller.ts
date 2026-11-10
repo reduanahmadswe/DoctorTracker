@@ -1,6 +1,6 @@
 import { sendSuccess } from '../../utils/apiResponse.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
-import type { Pagination } from '../../utils/pagination.js';
+import type { PageRequest } from '../../utils/pagination.js';
 import * as doctorPatientsService from './doctorPatients.service.js';
 import type {
   CreateDoctorInput,
@@ -30,12 +30,10 @@ export const getDoctor = asyncHandler(async (_req, res) => {
 
 export const listDoctorPatients = asyncHandler(async (_req, res) => {
   const { id } = res.locals.params as { id: string };
-  const { page, limit } = res.locals.query as Omit<Pagination, 'skip'>;
-  const { items, meta } = await doctorPatientsService.listDoctorPatients(id, {
-    page,
-    limit,
-    skip: (page - 1) * limit,
-  });
+  const { items, meta } = await doctorPatientsService.listDoctorPatients(
+    id,
+    res.locals.query as PageRequest,
+  );
   sendSuccess(res, items, { meta });
 });
 
