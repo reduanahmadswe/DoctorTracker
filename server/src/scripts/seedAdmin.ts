@@ -6,8 +6,13 @@ import { UserModel } from '../modules/auth/user.model.js';
 const ADMIN_NAME = 'Administrator';
 
 const seedAdmin = async (): Promise<void> => {
+  const { SEED_ADMIN_EMAIL, SEED_ADMIN_PASSWORD } = env;
+  if (!SEED_ADMIN_EMAIL || !SEED_ADMIN_PASSWORD) {
+    throw new Error('Set SEED_ADMIN_EMAIL and SEED_ADMIN_PASSWORD (min 8 characters) first.');
+  }
+
   await connectDatabase();
-  const email = env.SEED_ADMIN_EMAIL.toLowerCase();
+  const email = SEED_ADMIN_EMAIL.toLowerCase();
 
   const exists = await UserModel.exists({ email });
   if (exists) {
@@ -18,7 +23,7 @@ const seedAdmin = async (): Promise<void> => {
   await UserModel.create({
     name: ADMIN_NAME,
     email,
-    password: await hashPassword(env.SEED_ADMIN_PASSWORD),
+    password: await hashPassword(SEED_ADMIN_PASSWORD),
     role: 'admin',
   });
   process.stdout.write(`Admin ${email} created.\n`);
