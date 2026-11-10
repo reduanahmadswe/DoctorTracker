@@ -1,7 +1,7 @@
 "use client";
 
 import { Plus, Stethoscope } from "lucide-react";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useState } from "react";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
@@ -10,45 +10,22 @@ import { ErrorState } from "@/components/ui/ErrorState";
 import { Pagination } from "@/components/ui/Pagination";
 import { TableSkeleton } from "@/components/ui/Skeleton";
 import { cn } from "@/lib/utils";
-import { parsePageParam, useUrlParams } from "@/lib/use-url-params";
+import { useListParams } from "@/lib/use-list-params";
 import { CreateDoctorDialog } from "./CreateDoctorDialog";
-import type { DoctorListFilters } from "./doctors.types";
 import { DoctorsTable } from "./DoctorsTable";
 import { DoctorsToolbar } from "./DoctorsToolbar";
 import { useDoctorFilterOptions, useDoctors } from "./useDoctorQueries";
 
-const CLEARED_FILTERS = { q: "", specialization: "", hospital: "", from: "", to: "" };
+const FILTER_KEYS = ["q", "specialization", "hospital", "from", "to"] as const;
 
 export const DoctorsView = () => {
-  const { searchParams, update } = useUrlParams();
   const [createOpen, setCreateOpen] = useState(false);
-
-  const filters = useMemo<DoctorListFilters>(
-    () => ({
-      q: searchParams.get("q") ?? "",
-      specialization: searchParams.get("specialization") ?? "",
-      hospital: searchParams.get("hospital") ?? "",
-      from: searchParams.get("from") ?? "",
-      to: searchParams.get("to") ?? "",
-      page: parsePageParam(searchParams.get("page")),
-    }),
-    [searchParams],
-  );
-  const hasActiveFilters = Boolean(
-    filters.q || filters.specialization || filters.hospital || filters.from || filters.to,
-  );
-  const returnTo = searchParams.toString();
+  const { filters, hasActiveFilters, changeFilters, clearFilters, changePage, queryString } =
+    useListParams(FILTER_KEYS);
 
   const doctorsQuery = useDoctors(filters);
   const optionsQuery = useDoctorFilterOptions();
-
-  const handleFilterChange = useCallback(
-    (updates: Partial<Omit<DoctorListFilters, "page">>) => update(updates, { resetPage: true }),
-    [update],
-  );
-  const handleClear = useCallback(() => update(CLEARED_FILTERS, { resetPage: true }), [update]);
   const closeCreate = useCallback(() => setCreateOpen(false), []);
-  const handlePageChange = useCallback((page: number) => update({ page }), [update]);
 
   const { data, isPending, isError, isFetching, isPlaceholderData, refetch } = doctorsQuery;
 
@@ -68,8 +45,8 @@ export const DoctorsView = () => {
         filters={filters}
         options={optionsQuery.data}
         hasActiveFilters={hasActiveFilters}
-        onChange={handleFilterChange}
-        onClear={handleClear}
+        onChange={changeFilters}
+        onClear={clearFilters}
       />
       <Card className="overflow-hidden">
         {isPending && <TableSkeleton columns={6} rows={6} />}
@@ -85,7 +62,7 @@ export const DoctorsView = () => {
             }
             action={
               hasActiveFilters ? (
-                <Button variant="secondary" onClick={handleClear}>
+                <Button variant="secondary" onClick={clearFilters}>
                   Clear filters
                 </Button>
               ) : undefined
@@ -97,8 +74,8 @@ export const DoctorsView = () => {
             aria-busy={isPlaceholderData}
             className={cn("transition-opacity", isPlaceholderData && "opacity-60")}
           >
-            <DoctorsTable doctors={data.items} returnTo={returnTo} />
-            <Pagination meta={data.meta} onPageChange={handlePageChange} isFetching={isFetching} />
+            <DoctorsTable doctors={data.items} returnTo={queryString} />
+            <Pagination meta={data.meta} onPageChange={changePage} isFetching={isFetching} />
           </div>
         )}
       </Card>

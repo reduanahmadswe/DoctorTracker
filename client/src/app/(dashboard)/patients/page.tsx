@@ -1,8 +1,14 @@
 import type { Metadata } from "next";
-import { PageHeader } from "@/components/layout/PageHeader";
+import { Suspense } from "react";
+import { PatientsView } from "@/features/patients/PatientsView";
 
 export const metadata: Metadata = { title: "Patients" };
 
 export default function PatientsPage() {
-  return <PageHeader title="Patients" description="All patients across every doctor." />;
+  // useSearchParams() (list state in the URL) needs a Suspense boundary.
+  return (
+    <Suspense fallback={null}>
+      <PatientsView />
+    </Suspense>
+  );
 }
