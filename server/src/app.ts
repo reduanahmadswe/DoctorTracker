@@ -1,7 +1,10 @@
 import cookieParser from 'cookie-parser';
 import cors from 'cors';
 import express from 'express';
-import helmet from 'helmet';
+// Namespace import: helmet's type declarations expose the factory as the module's `default`
+// export, which a default import only resolves in some TypeScript module modes (Vercel's build
+// type-checks the sources with its own settings).
+import * as helmetModule from 'helmet';
 import hpp from 'hpp';
 import { ensureDatabase } from './config/db.js';
 import { env } from './config/env.js';
@@ -16,7 +19,7 @@ export const app = express();
 
 app.disable('x-powered-by');
 app.set('trust proxy', env.TRUST_PROXY);
-app.use(helmet());
+app.use(helmetModule.default());
 app.use(cors({ origin: env.CLIENT_ORIGIN, credentials: true }));
 app.use(express.json({ limit: '10kb' }));
 app.use(cookieParser());
