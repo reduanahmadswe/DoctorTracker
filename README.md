@@ -159,3 +159,70 @@ All paths are under `/api/v1` and every route except `/auth/login`, `/auth/logou
 │       └── server.ts            connects the database, listens, shuts down gracefully
 └── package.json                 npm workspaces and root scripts
 ```
+
+## Technical Decisions
+
+### 1. TanStack Query and URL search params instead of Redux or Context
+
+**The problem.** Almost all state in this app is *server state*: lists of doctors and patients, a doctor's profile, dashboard numbers. The rest is *view state* of a list: the search text, the filters and the current page. A global store such as Redux, or a hand-rolled Context, would have to re-implement loading and error flags, caching, refetching, request cancellation and invalidation for the first kind, and would hide the second kind in memory where it cannot be shared or restored.
+
+**What the app does instead.**
+
+- **Server state lives in TanStack Query.** Every list, detail and statistic is a query whose key contains its parameters (`["doctors", "list", filters]`), so each combination is cached independently. `staleTime` is 30 seconds, refetch on window focus is off for lists, and 4xx responses are never retried.
+- **Pagination feels instant.** Lists use `placeholderData: keepPreviousData`: while page 2 loads, page 1 stays on screen slightly dimmed (`aria-busy`) instead of flashing a skeleton, and going back to a page that was already visited is served from the cache.
+- **View state lives in the URL.** Search, filters and page are search params (`/patients?condition=Critical&doctor=...&page=2`). A shared hook, `useListParams`, reads them, exposes stable handlers and resets the page to 1 whenever a filter changes. Any view can therefore be bookmarked or sent to a colleague, refresh and the browser's back button restore it exactly, and the "Back to doctors" link on a doctor's page returns to the same filtered, paginated list.
+- **Mutations keep the cache honest.** Creating, editing or deleting records invalidates only what depends on them (the lists, the affected doctor, the dashboard). Deleting a patient is optimistic: the row disappears at once and is restored with an error toast if the server refuses.
+- **Fewer re-renders.** Because the data sits in the query cache and the filters in the URL, only the components that read them re-render. Table rows, cards and toolbars are `memo`ized with stable callbacks, so a background refetch does not re-render the toolbar, and typing in the search box (debounced 300 ms) does not re-render the table.
+
+**Trade-offs.** TanStack Query adds a dependency and a mental model (keys, invalidation), which is far less code and fewer bugs than a store that reimplements it. Anything genuinely client-only and local, such as whether a dialog is open, stays plain `useState` next to the component that owns it. The app has no global client state at all.
+
+### 2. Compound, text and covered indexes plus aggregation pipelines for search, filters, pagination and the dashboard
+
+**The problem.** Every list has the same shape: optional text search, optional equality filters, an optional date range, newest first, paginated, with a total count. Done naively, each request scans the whole collection, and the dashboard would load every patient into memory just to count them.
+
+**What the app does.**
+
+- **Indexes follow the query shapes.** Doctors: `{createdAt: -1}`, `{specialization: 1, createdAt: -1}`, `{hospital: 1, createdAt: -1}`, a unique `{email: 1}` and a weighted text index (name 10, specialization 5, hospital 3, email 1). Patients: `{createdAt: -1}`, `{doctor: 1, createdAt: -1}`, `{condition: 1, createdAt: -1}` and a text index on name and phone. Putting `createdAt` second lets MongoDB filter on the equality field and return rows already sorted, so there is no in-memory sort.
+- **One filter object, `lean()`, parallel count.** Each list builds its filter once, uses `.lean()` with only the needed fields, and runs `find` and `countDocuments` with `Promise.all`. Search uses `$text` and sorts by text score first.
+- **No N+1.** Patient counts for a page of doctors come from a single `$group` aggregation, and the patients list adds doctor names with one extra query by `_id`.
+- **The dashboard is aggregation pipelines.** Per-day counts are a `$match` on the indexed `createdAt` followed by a `$group` by UTC day. The patients-per-doctor and per-condition breakdowns group on indexed fields and are hinted to those indexes, so they are answered from the index alone (covered) without reading documents. They are separate pipelines rather than one `$facet`, because a `$facet` forced a collection scan. The `$lookup` that adds doctor names runs only on the 10 grouped rows. Indexes are built before the server starts accepting requests.
+
+**Evidence.** `explain("executionStats")` on a database with 14 doctors and 110 patients. No query does a collection scan.
+
+| Query | Plan and index | Keys / documents examined |
+| --- | --- | --- |
+| Doctors: default list | `IXSCAN createdAt_-1` | 10 / 10 |
+| Doctors: by specialization | `IXSCAN specialization_1_createdAt_-1` | 3 / 3 |
+| Doctors: by hospital | `IXSCAN hospital_1_createdAt_-1` | 5 / 5 |
+| Doctors: date range | `IXSCAN createdAt_-1` | 8 / 8 |
+| Doctors: text search | `IXSCAN doctor_text_search` | 2 / 2 |
+| Doctors: filter dropdown values | `DISTINCT_SCAN` (covered) | 6 / 0 |
+| Doctors: lookup by email or id | `email_1`, `_id_` | 1 / 1 |
+| Patients: default list, date range | `IXSCAN createdAt_-1` | 10 / 10 |
+| Patients: by condition | `IXSCAN condition_1_createdAt_-1` | 10 / 10 |
+| Patients: by doctor | `IXSCAN doctor_1_createdAt_-1` | 10 / 10 |
+| Patients: doctor + condition | `IXSCAN doctor_1_createdAt_-1` | 12 / 12 |
+| Patients: text search | `IXSCAN patient_text_search` | 12 / 12 |
+| Patient counts for the doctors list | `IXSCAN doctor_1_createdAt_-1` (covered) | 12 / 0 |
+| Dashboard: patients per doctor | `IXSCAN doctor_1_createdAt_-1` (covered, hinted) | 110 / 0 |
+| Dashboard: patients by condition | `IXSCAN condition_1_createdAt_-1` (covered, hinted) | 110 / 0 |
+| Dashboard: new patients and doctors per day | `IXSCAN createdAt_-1` (covered) | 102 / 0 and 8 / 0 |
+| Count behind each list's pagination total | `COUNT_SCAN` or the same index as the list | about 0 documents |
+
+Before the hint was added, the two dashboard breakdowns did a collection scan of all 110 patients; afterwards they read no documents at all.
+
+**Trade-offs.** Each index costs write time and storage, which is acceptable for read-heavy admin data. MongoDB text search matches whole words, so `neurology` finds Neurology but `neuro` does not; that is the price of using the text index the specification asks for instead of unindexed regular expressions. The dashboard breakdowns are hinted to named indexes, which is why indexes are built at startup.
+
+### Minimal choices made while building
+
+The specification was followed as written. Where it left room, the smallest option that satisfies it was chosen:
+
+- **Patient fields** are exactly what the required filters need: name, phone, condition, doctor (a reference), `createdAt` and `updatedAt`. Conditions are the fixed set Stable, Under Observation, Critical and Recovered.
+- **Doctor fields** are the five required ones (name, specialization, hospital, phone, email), all required; email is unique and stored lowercase. A doctor cannot be edited or deleted, as specified.
+- **Authentication** has one role, `admin`, created only by the seed script. There is no sign-up page. Tokens are stateless, so logout clears the cookie rather than revoking the token.
+- **Date filters** compare `createdAt` with inclusive UTC day bounds. The dashboard also buckets days in UTC, so the two always agree.
+- **Dashboard scope:** the totals, patients per doctor (top 10) and condition breakdown describe all data; only the activity chart follows the selected range (default last 30 days, at most 366).
+- **Doctor pickers** (the patient filter and the edit form) load the first 50 doctors, the API's page-size cap, and filter them in the browser.
+- **Cache Components** are switched off in `next.config.ts`. The app fetches everything on the client, and the feature caused false hydration and prefetch-validation errors in development.
+- **Demo credentials box** on the sign-in page is optional, was requested after the specification, and appears only when both `NEXT_PUBLIC_DEMO_*` variables are set.
+- **Rate limits:** 5 failed logins per 15 minutes per IP, and 600 API requests per 15 minutes per IP. Behind a reverse proxy, set Express's `trust proxy` so the real client IP is used; this is not configured by default.
