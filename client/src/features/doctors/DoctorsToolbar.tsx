@@ -53,11 +53,13 @@ const DoctorsToolbarComponent = ({
           value={filters.hospital}
           onChange={(event) => onChange({ hospital: event.target.value })}
         />
-        <DateRangeFilter
-          from={filters.from}
-          to={filters.to}
-          onChange={({ from, to }) => onChange({ from, to })}
-        />
+        <div className="grid grid-cols-2 gap-4 sm:col-span-2">
+          <DateRangeFilter
+            from={filters.from}
+            to={filters.to}
+            onChange={({ from, to }) => onChange({ from, to })}
+          />
+        </div>
       </div>
       {hasActiveFilters && (
         <div>

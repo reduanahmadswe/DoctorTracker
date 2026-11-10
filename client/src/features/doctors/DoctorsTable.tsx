@@ -42,9 +42,13 @@ const DoctorRow = memo(({ doctor, returnTo }: RowProps) => (
     <TableCell>
       <Badge variant="primary">{doctor.specialization}</Badge>
     </TableCell>
-    <TableCell>{doctor.hospital}</TableCell>
+    <TableCell className="min-w-36">{doctor.hospital}</TableCell>
     <TableCell className="whitespace-nowrap">{doctor.phone}</TableCell>
-    <TableCell>{doctor.email}</TableCell>
+    <TableCell>
+      <span className="block max-w-48 truncate" title={doctor.email}>
+        {doctor.email}
+      </span>
+    </TableCell>
     <TableCell className="text-center">{doctor.patientCount}</TableCell>
     <TableCell className="whitespace-nowrap text-text-muted">{formatDate(doctor.createdAt)}</TableCell>
     <TableCell className="text-right">
