@@ -1,8 +1,14 @@
 import type { Metadata } from "next";
-import { PageHeader } from "@/components/layout/PageHeader";
+import { Suspense } from "react";
+import { DashboardView } from "@/features/dashboard/DashboardView";
 
 export const metadata: Metadata = { title: "Dashboard" };
 
 export default function DashboardPage() {
-  return <PageHeader title="Dashboard" description="An overview of doctors and patients." />;
+  // useSearchParams() (the date range in the URL) needs a Suspense boundary.
+  return (
+    <Suspense fallback={null}>
+      <DashboardView />
+    </Suspense>
+  );
 }
