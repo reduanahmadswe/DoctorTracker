@@ -1,7 +1,7 @@
 "use client";
 
-import { Stethoscope } from "lucide-react";
-import { useCallback, useMemo } from "react";
+import { Plus, Stethoscope } from "lucide-react";
+import { useCallback, useMemo, useState } from "react";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
@@ -11,6 +11,7 @@ import { Pagination } from "@/components/ui/Pagination";
 import { TableSkeleton } from "@/components/ui/Skeleton";
 import { cn } from "@/lib/utils";
 import { parsePageParam, useUrlParams } from "@/lib/use-url-params";
+import { CreateDoctorDialog } from "./CreateDoctorDialog";
 import type { DoctorListFilters } from "./doctors.types";
 import { DoctorsTable } from "./DoctorsTable";
 import { DoctorsToolbar } from "./DoctorsToolbar";
@@ -20,6 +21,7 @@ const CLEARED_FILTERS = { q: "", specialization: "", hospital: "", from: "", to:
 
 export const DoctorsView = () => {
   const { searchParams, update } = useUrlParams();
+  const [createOpen, setCreateOpen] = useState(false);
 
   const filters = useMemo<DoctorListFilters>(
     () => ({
@@ -45,13 +47,23 @@ export const DoctorsView = () => {
     [update],
   );
   const handleClear = useCallback(() => update(CLEARED_FILTERS, { resetPage: true }), [update]);
+  const closeCreate = useCallback(() => setCreateOpen(false), []);
   const handlePageChange = useCallback((page: number) => update({ page }), [update]);
 
   const { data, isPending, isError, isFetching, isPlaceholderData, refetch } = doctorsQuery;
 
   return (
     <>
-      <PageHeader title="Doctors" description="Browse doctors and manage their patients." />
+      <PageHeader
+        title="Doctors"
+        description="Browse doctors and manage their patients."
+        actions={
+          <Button onClick={() => setCreateOpen(true)}>
+            <Plus aria-hidden className="size-4" />
+            Add Doctor
+          </Button>
+        }
+      />
       <DoctorsToolbar
         filters={filters}
         options={optionsQuery.data}
@@ -90,6 +102,7 @@ export const DoctorsView = () => {
           </div>
         )}
       </Card>
+      <CreateDoctorDialog open={createOpen} onClose={closeCreate} />
     </>
   );
 };
