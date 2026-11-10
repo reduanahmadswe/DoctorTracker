@@ -6,6 +6,7 @@ import {
   fetchDoctor,
   fetchDoctorFilterOptions,
   fetchDoctorPatients,
+  fetchDoctorSelectOptions,
   fetchDoctors,
 } from "./doctors.api";
 import type { DoctorListFilters } from "./doctors.types";
@@ -27,10 +28,18 @@ export const useDoctorFilterOptions = () =>
     staleTime: FILTER_OPTIONS_STALE_TIME_MS,
   });
 
-export const useDoctor = (id: string) =>
+export const useDoctor = (id: string, enabled = true) =>
   useQuery({
     queryKey: doctorKeys.detail(id),
     queryFn: ({ signal }) => fetchDoctor(id, signal),
+    enabled,
+  });
+
+export const useDoctorSelectOptions = () =>
+  useQuery({
+    queryKey: doctorKeys.selectOptions,
+    queryFn: ({ signal }) => fetchDoctorSelectOptions(signal),
+    staleTime: FILTER_OPTIONS_STALE_TIME_MS,
   });
 
 export const useDoctorPatients = (id: string, page: number) =>
