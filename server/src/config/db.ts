@@ -8,4 +8,16 @@ export const connectDatabase = async (): Promise<void> => {
   await Promise.all(Object.values(mongoose.models).map((model) => model.init()));
 };
 
+// Opens the connection once and shares it. A warm serverless instance reuses it for later requests;
+// a failed attempt is forgotten so the next request tries again.
+let connection: Promise<void> | undefined;
+
+export const ensureDatabase = (): Promise<void> => {
+  connection ??= connectDatabase().catch((error: unknown) => {
+    connection = undefined;
+    throw error;
+  });
+  return connection;
+};
+
 export const disconnectDatabase = (): Promise<void> => mongoose.disconnect();
