@@ -1,4 +1,3 @@
-import { Suspense } from "react";
 import { Brand } from "./Brand";
 import { NavLinks } from "./NavLinks";
 
@@ -8,8 +7,6 @@ export const Sidebar = () => (
     <div className="px-2">
       <Brand />
     </div>
-    <Suspense fallback={null}>
-      <NavLinks />
-    </Suspense>
+    <NavLinks />
   </aside>
 );
