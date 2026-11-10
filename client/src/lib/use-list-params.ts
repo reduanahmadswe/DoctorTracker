@@ -3,7 +3,7 @@
 import { useCallback, useMemo } from "react";
 import { parsePageParam, useUrlParams } from "./use-url-params";
 
-export type ListState<K extends string> = Record<K, string> & { page: number };
+type ListState<K extends string> = Record<K, string> & { page: number };
 
 // Shared by every paginated list (doctors, patients): reads the filters and page from the URL
 // and exposes stable handlers that keep the URL as the single source of truth.

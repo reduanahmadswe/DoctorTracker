@@ -1,7 +1,7 @@
 import type { Ref, SelectHTMLAttributes } from "react";
 import { controlClassName, FormField } from "./FormField";
 
-export interface SelectOption {
+interface SelectOption {
   value: string;
   label: string;
 }
