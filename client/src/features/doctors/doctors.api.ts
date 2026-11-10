@@ -15,7 +15,7 @@ export const doctorKeys = {
   lists: ["doctors", "list"] as const,
   list: (filters: DoctorListFilters) => ["doctors", "list", filters] as const,
   filterOptions: ["doctors", "filters"] as const,
-  selectOptions: ["doctors", "select-options"] as const,
+  selectOptions: (search: string) => ["doctors", "select-options", search] as const,
   detail: (id: string) => ["doctors", "detail", id] as const,
   patients: (id: string, page: number) => ["doctors", "detail", id, "patients", page] as const,
   patientsOf: (id: string) => ["doctors", "detail", id, "patients"] as const,
@@ -37,12 +37,19 @@ export const fetchDoctors = async (
     }),
   );
 
-// The API caps a page at 50 items; the doctor pickers filter this list on the client.
-const DOCTOR_SELECT_LIMIT = 50;
+// The doctor pickers search on the server, so they work with any number of doctors.
+const DOCTOR_SELECT_LIMIT = 20;
 
-export const fetchDoctorSelectOptions = async (signal?: AbortSignal): Promise<DoctorListItem[]> =>
-  (await api.get<DoctorListItem[]>("/doctors", { params: { limit: DOCTOR_SELECT_LIMIT }, signal }))
-    .data;
+export const fetchDoctorSelectOptions = async (
+  search: string,
+  signal?: AbortSignal,
+): Promise<DoctorListItem[]> =>
+  (
+    await api.get<DoctorListItem[]>("/doctors", {
+      params: { q: search, limit: DOCTOR_SELECT_LIMIT },
+      signal,
+    })
+  ).data;
 
 export const fetchDoctorFilterOptions = async (signal?: AbortSignal): Promise<DoctorFilterOptions> =>
   (await api.get<DoctorFilterOptions>("/doctors/filters", { signal })).data;

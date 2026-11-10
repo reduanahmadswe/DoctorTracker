@@ -1,7 +1,9 @@
 "use client";
 
-import { useMemo } from "react";
-import { Combobox } from "@/components/ui/Combobox";
+import { useCallback, useMemo, useState } from "react";
+import { Combobox, type ComboboxOption } from "@/components/ui/Combobox";
+import { SEARCH_DEBOUNCE_MS } from "@/lib/constants";
+import { useDebouncedValue } from "@/lib/use-debounced-value";
 import { useDoctor, useDoctorSelectOptions } from "./useDoctorQueries";
 
 interface DoctorSelectProps {
@@ -26,7 +28,11 @@ export const DoctorSelect = ({
   error,
   className,
 }: DoctorSelectProps) => {
-  const { data: doctors, isPending } = useDoctorSelectOptions();
+  const [typed, setTyped] = useState("");
+  const search = useDebouncedValue(typed.trim(), SEARCH_DEBOUNCE_MS);
+  const { data: doctors, isFetching } = useDoctorSelectOptions(search);
+  // Remembers the name of the picked doctor, which may not be in the current search results.
+  const [pickedLabel, setPickedLabel] = useState<{ id: string; label: string } | null>(null);
 
   const options = useMemo(
     () =>
@@ -38,10 +44,18 @@ export const DoctorSelect = ({
     [doctors],
   );
 
-  // A selected doctor outside the loaded options (e.g. from a shared URL) is looked up by id.
-  const isListed = options.some((option) => option.value === value);
-  const needsLookup = Boolean(value) && !isPending && !isListed && !selectedLabel;
-  const { data: lookedUp } = useDoctor(value, needsLookup);
+  const knownLabel =
+    selectedLabel ?? (pickedLabel?.id === value ? pickedLabel.label : undefined);
+  // A value from a shared URL has no name yet: look the doctor up by id.
+  const { data: lookedUp } = useDoctor(value, Boolean(value) && !knownLabel);
+
+  const handleChange = useCallback(
+    (doctorId: string, option: ComboboxOption) => {
+      setPickedLabel({ id: doctorId, label: option.label });
+      onChange(doctorId);
+    },
+    [onChange],
+  );
 
   return (
     <Combobox
@@ -49,11 +63,13 @@ export const DoctorSelect = ({
       label={label}
       options={options}
       value={value}
-      onChange={onChange}
-      selectedLabel={selectedLabel ?? lookedUp?.name}
+      onChange={handleChange}
+      onQueryChange={setTyped}
+      filterLocally={false}
+      selectedLabel={knownLabel ?? lookedUp?.name}
       placeholder="Search doctors"
       emptyOptionLabel={emptyOptionLabel}
-      loading={isPending}
+      loading={isFetching}
       error={error}
       className={className}
     />

@@ -35,10 +35,11 @@ export const useDoctor = (id: string, enabled = true) =>
     enabled,
   });
 
-export const useDoctorSelectOptions = () =>
+export const useDoctorSelectOptions = (search: string) =>
   useQuery({
-    queryKey: doctorKeys.selectOptions,
-    queryFn: ({ signal }) => fetchDoctorSelectOptions(signal),
+    queryKey: doctorKeys.selectOptions(search),
+    queryFn: ({ signal }) => fetchDoctorSelectOptions(search, signal),
+    placeholderData: keepPreviousData,
     staleTime: FILTER_OPTIONS_STALE_TIME_MS,
   });
 
