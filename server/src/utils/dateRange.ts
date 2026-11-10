@@ -1,6 +1,15 @@
 import { z } from 'zod';
 
-const dayString = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Use the YYYY-MM-DD format');
+// Date parsing rolls "2026-02-31" over to March, so compare the round trip to reject it.
+const isRealDay = (day: string): boolean => {
+  const parsed = new Date(`${day}T00:00:00.000Z`);
+  return !Number.isNaN(parsed.getTime()) && parsed.toISOString().startsWith(day);
+};
+
+const dayString = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, { error: 'Use the YYYY-MM-DD format', abort: true })
+  .refine(isRealDay, 'Enter a valid calendar date');
 
 export const dateRangeShape = {
   from: dayString.optional(),
