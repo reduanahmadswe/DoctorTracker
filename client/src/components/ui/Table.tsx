@@ -23,11 +23,11 @@ export const TableRow = ({ className, ...props }: HTMLAttributes<HTMLTableRowEle
 export const TableHeaderCell = ({ className, ...props }: ThHTMLAttributes<HTMLTableCellElement>) => (
   <th
     scope="col"
-    className={cn("px-4 py-3 text-xs font-medium whitespace-nowrap text-text-muted", className)}
+    className={cn("px-3 py-3 text-xs font-medium whitespace-nowrap text-text-muted", className)}
     {...props}
   />
 );
 
 export const TableCell = ({ className, ...props }: TdHTMLAttributes<HTMLTableCellElement>) => (
-  <td className={cn("px-4 py-3 align-middle text-text", className)} {...props} />
+  <td className={cn("px-3 py-3 align-middle text-text", className)} {...props} />
 );

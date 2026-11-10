@@ -1,8 +1,16 @@
 import type { Metadata } from "next";
-import { PageHeader } from "@/components/layout/PageHeader";
+import { Suspense } from "react";
+import { DoctorDetailView } from "@/features/doctors/DoctorDetailView";
 
 export const metadata: Metadata = { title: "Doctor details" };
 
-export default function DoctorDetailsPage() {
-  return <PageHeader title="Doctor details" description="Profile and patients of this doctor." />;
+export default async function DoctorDetailsPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+
+  // useSearchParams() (page and back link in the URL) needs a Suspense boundary.
+  return (
+    <Suspense fallback={null}>
+      <DoctorDetailView doctorId={id} />
+    </Suspense>
+  );
 }
