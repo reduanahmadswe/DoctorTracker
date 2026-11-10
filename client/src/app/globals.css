@@ -1,0 +1,98 @@
+@import "tailwindcss";
+
+/*
+ * Design tokens (single source of truth). Components use the Tailwind utilities generated
+ * from the @theme block below (bg-primary, text-muted, rounded-card, ...), never raw colors.
+ * Light theme only.
+ */
+:root {
+  --primary: #0e7490;
+  --primary-hover: #155e75;
+  --primary-soft: #ecfeff;
+
+  --background: #f6f9fb;
+  --surface: #ffffff;
+  --border: #e2e8f0;
+
+  --text: #0f172a;
+  --text-muted: #64748b;
+
+  --success: #16a34a;
+  --warning: #d97706;
+  --danger: #dc2626;
+  --info: #2563eb;
+
+  /* Tinted backgrounds and AA-contrast text derived from the status colors. */
+  --success-soft: color-mix(in srgb, var(--success) 12%, white);
+  --warning-soft: color-mix(in srgb, var(--warning) 12%, white);
+  --danger-soft: color-mix(in srgb, var(--danger) 10%, white);
+  --info-soft: color-mix(in srgb, var(--info) 10%, white);
+  --success-text: color-mix(in srgb, var(--success) 72%, black);
+  --warning-text: color-mix(in srgb, var(--warning) 70%, black);
+  --danger-text: color-mix(in srgb, var(--danger) 85%, black);
+  --info-text: color-mix(in srgb, var(--info) 85%, black);
+
+  --radius-card: 12px;
+  --radius-control: 8px;
+
+  --shadow-card: 0 1px 2px rgb(15 23 42 / 0.04), 0 1px 3px rgb(15 23 42 / 0.06);
+  --shadow-overlay: 0 8px 24px rgb(15 23 42 / 0.12);
+}
+
+@theme inline {
+  --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
+  --color-primary-soft: var(--primary-soft);
+  --color-background: var(--background);
+  --color-surface: var(--surface);
+  --color-border: var(--border);
+  --color-text: var(--text);
+  --color-text-muted: var(--text-muted);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-danger: var(--danger);
+  --color-info: var(--info);
+  --color-success-soft: var(--success-soft);
+  --color-warning-soft: var(--warning-soft);
+  --color-danger-soft: var(--danger-soft);
+  --color-info-soft: var(--info-soft);
+  --color-success-text: var(--success-text);
+  --color-warning-text: var(--warning-text);
+  --color-danger-text: var(--danger-text);
+  --color-info-text: var(--info-text);
+
+  --radius-card: var(--radius-card);
+  --radius-control: var(--radius-control);
+  --shadow-card: var(--shadow-card);
+  --shadow-overlay: var(--shadow-overlay);
+
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+}
+
+html {
+  color-scheme: light;
+}
+
+body {
+  background: var(--background);
+  color: var(--text);
+  font-family: var(--font-sans);
+}
+
+:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+dialog::backdrop {
+  background: rgb(15 23 42 / 0.4);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
