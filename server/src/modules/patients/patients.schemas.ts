@@ -1,13 +1,16 @@
 import { z } from 'zod';
 import { dateRangeShape, isValidDateRange } from '../../utils/dateRange.js';
+import { phoneSchema, requiredText } from '../../utils/fieldSchemas.js';
 import { objectIdSchema } from '../../utils/objectId.js';
 import { paginationQuerySchema } from '../../utils/pagination.js';
 import { PATIENT_CONDITIONS } from './patient.model.js';
 
-const phoneSchema = z
-  .string()
-  .trim()
-  .regex(/^[+()\d\s-]{7,20}$/, 'Enter a valid phone number');
+// Fields shared by adding a patient under a doctor and editing a patient.
+export const patientInputSchema = z.object({
+  name: requiredText(100),
+  phone: phoneSchema,
+  condition: z.enum(PATIENT_CONDITIONS),
+});
 
 export const listPatientsQuerySchema = paginationQuerySchema
   .extend({
@@ -20,13 +23,8 @@ export const listPatientsQuerySchema = paginationQuerySchema
 
 export const patientIdParamsSchema = z.object({ id: objectIdSchema });
 
-export const updatePatientSchema = z
-  .object({
-    name: z.string().trim().min(1, 'Required').max(100),
-    phone: phoneSchema,
-    condition: z.enum(PATIENT_CONDITIONS),
-    doctor: objectIdSchema,
-  })
+export const updatePatientSchema = patientInputSchema
+  .extend({ doctor: objectIdSchema })
   .partial()
   .refine((input) => Object.keys(input).length > 0, {
     message: 'Provide at least one field to update',
