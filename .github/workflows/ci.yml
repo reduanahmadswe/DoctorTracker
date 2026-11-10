@@ -1,0 +1,108 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: 20
+
+jobs:
+  server:
+    name: Server (lint, typecheck, build)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      - run: npm run lint --workspace server
+      - run: npm run typecheck --workspace server
+      - run: npm run build --workspace server
+
+  client:
+    name: Client (lint, typecheck, build)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      - run: npm run lint --workspace client
+      - run: npm run typecheck --workspace client
+      - run: npm run build --workspace client
+        env:
+          API_URL: http://localhost:5000
+
+  api-smoke:
+    name: API smoke test (MongoDB)
+    runs-on: ubuntu-latest
+    needs: server
+    services:
+      mongo:
+        image: mongo:7
+        ports:
+          - 27017:27017
+        options: >-
+          --health-cmd "mongosh --quiet --eval 'db.runCommand({ ping: 1 }).ok'"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      NODE_ENV: development
+      PORT: 5000
+      MONGODB_URI: mongodb://127.0.0.1:27017/doctor-tracker-ci
+      JWT_SECRET: ci-only-secret-that-is-at-least-thirty-two-characters-long
+      JWT_EXPIRES_IN: 1d
+      CLIENT_ORIGIN: http://localhost:3000
+      SEED_ADMIN_EMAIL: ci-admin@example.com
+      SEED_ADMIN_PASSWORD: ci-admin-password
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      - run: npm run build --workspace server
+      - name: Seed the admin account
+        run: npm run seed:admin
+      - name: Start the API
+        run: |
+          node server/dist/server.js > server.log 2>&1 &
+          for i in $(seq 1 30); do
+            curl -sf http://localhost:5000/api/v1/health > /dev/null && exit 0
+            sleep 1
+          done
+          cat server.log
+          exit 1
+      - name: Check health, authentication and a protected route
+        run: |
+          set -e
+          base=http://localhost:5000/api/v1
+          test "$(curl -s -o /dev/null -w '%{http_code}' $base/doctors)" = 401
+          test "$(curl -s -o /dev/null -w '%{http_code}' -X POST $base/auth/login \
+            -H 'content-type: application/json' \
+            -d '{"email":"ci-admin@example.com","password":"wrong-password"}')" = 401
+          curl -sf -c cookies.txt -X POST $base/auth/login \
+            -H 'content-type: application/json' \
+            -d '{"email":"ci-admin@example.com","password":"ci-admin-password"}' > /dev/null
+          curl -sf -b cookies.txt $base/auth/me > /dev/null
+          curl -sf -b cookies.txt "$base/dashboard/stats" > /dev/null
+          curl -sf -b cookies.txt "$base/doctors?limit=5" > /dev/null
+          curl -sf -b cookies.txt "$base/patients?limit=5" > /dev/null
+      - name: Show server log on failure
+        if: failure()
+        run: cat server.log

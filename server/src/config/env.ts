@@ -8,8 +8,11 @@ const envSchema = z.object({
   JWT_SECRET: z.string().min(32, 'JWT_SECRET must be at least 32 characters'),
   JWT_EXPIRES_IN: z.string().min(1).default('1d'),
   CLIENT_ORIGIN: z.url(),
-  SEED_ADMIN_EMAIL: z.email(),
-  SEED_ADMIN_PASSWORD: z.string().min(8),
+  // Number of reverse proxies in front of the API (1 on Vercel) so req.ip is the real client.
+  TRUST_PROXY: z.coerce.number().int().min(0).default(0),
+  // Only needed by `npm run seed:admin`, so the running API does not require them.
+  SEED_ADMIN_EMAIL: z.email().optional(),
+  SEED_ADMIN_PASSWORD: z.string().min(8).optional(),
 });
 
 const parsed = envSchema.safeParse(process.env);

@@ -41,8 +41,9 @@ On Windows PowerShell use `Copy-Item` instead of `cp`.
 | `JWT_SECRET` | yes | Secret that signs login tokens, at least 32 characters. Generate one with `node -e "console.log(require('crypto').randomBytes(48).toString('hex'))"`. Never commit it. |
 | `JWT_EXPIRES_IN` | no | Lifetime of a login, such as `12h`, `1d` or `7d`. Defaults to `1d` and also sets the cookie lifetime. |
 | `CLIENT_ORIGIN` | yes | Origin of the client app, for example `http://localhost:3000`. It is the only origin CORS allows. |
-| `SEED_ADMIN_EMAIL` | yes | Email of the admin account created by the seed script. |
-| `SEED_ADMIN_PASSWORD` | yes | Password of that admin account (at least 8 characters). |
+| `TRUST_PROXY` | no | Number of reverse proxies in front of the API. `0` (default) locally, `1` on Vercel, so rate limiting sees the real client address. |
+| `SEED_ADMIN_EMAIL` | for seeding | Email of the admin account created by `npm run seed:admin`. The running API does not need it. |
+| `SEED_ADMIN_PASSWORD` | for seeding | Password of that admin account (at least 8 characters). |
 
 The server validates these at startup and exits with a clear message if one is missing or invalid.
 
@@ -91,6 +92,49 @@ Then open <http://localhost:3000> and sign in with the values you set for `SEED_
 | `npm run build` | Builds both apps for production |
 | `npm run start --workspace server` | Runs the built API (`node dist/server.js`) |
 | `npm run start --workspace client` | Runs the built Next.js app |
+
+### Continuous integration
+
+`.github/workflows/ci.yml` runs on every pull request and every push to `main`:
+
+| Job | What it checks |
+| --- | --- |
+| **Server** | `npm ci`, then lint, typecheck and build of the API |
+| **Client** | `npm ci`, then lint, typecheck and build of the Next.js app |
+| **API smoke test** | Starts a MongoDB 7 service, builds and starts the API, seeds an admin, then checks that `/doctors` is 401 without a session, a wrong password is 401, login works, and `/auth/me`, the dashboard, doctors and patients endpoints answer for a signed-in admin |
+
+To keep broken code out of production, turn on branch protection for `main` (GitHub → Settings → Branches) and require these three checks before merging.
+
+### Deploy to Vercel
+
+The API and the client are deployed as **two Vercel projects from the same repository**. Vercel's Git integration is the continuous delivery: every push to `main` becomes a production deployment and every pull request gets a preview deployment.
+
+**Before you start**, create a MongoDB Atlas cluster and a database user, and under *Network Access* allow `0.0.0.0/0` (Vercel functions have no fixed IP addresses).
+
+1. **Deploy the API.** In Vercel choose *Add New → Project*, import the repository and set **Root Directory** to `server`. Leave the framework preset on *Other*; `server/vercel.json` already contains the build command and `server/api/[...path].js` serves every `/api/*` request through the compiled Express app. Add these environment variables, then deploy:
+
+   | Variable | Value |
+   | --- | --- |
+   | `MONGODB_URI` | Your Atlas connection string, including the database name (for example `.../doctor-tracker`) |
+   | `JWT_SECRET` | A new random string of at least 32 characters (never reuse the example) |
+   | `JWT_EXPIRES_IN` | `1d` |
+   | `CLIENT_ORIGIN` | The client's URL (set it in step 3 if you do not know it yet) |
+   | `TRUST_PROXY` | `1` |
+
+   Vercel sets `NODE_ENV=production`, which turns on `Secure` cookies and hides error details. Check `https://<your-api>.vercel.app/api/v1/health`.
+
+2. **Deploy the client.** Add a second project from the same repository with **Root Directory** `client` (framework preset *Next.js* is detected). Set `API_URL` to the API's URL without a trailing slash, for example `https://<your-api>.vercel.app`. The value is read at build time by the `/api` rewrite, so redeploy after changing it. Do not set the `NEXT_PUBLIC_DEMO_*` variables in production.
+
+3. **Point CORS at the client.** In the API project set `CLIENT_ORIGIN` to the client's URL and redeploy it.
+
+4. **Create the admin account** once, from your machine, against the Atlas database: put the Atlas `MONGODB_URI` and the `SEED_ADMIN_EMAIL` and `SEED_ADMIN_PASSWORD` you want into `server/.env`, run `npm run seed:admin`, then switch `server/.env` back to your local database. Do not run `seed:demo` against production data.
+
+Things to know about the serverless deployment:
+
+- The browser only talks to the client's domain, which forwards `/api/*` to the API, so the login cookie stays first-party. That is why `API_URL` must be correct.
+- Each API request may run on a fresh instance. The database connection is reused while an instance is warm, and the first request after idle time is slower.
+- The rate limiters keep their counters in memory, so on serverless they are per instance and best effort. For strict limits use a shared store such as Redis.
+- Functions are limited to 15 seconds (`server/vercel.json`).
 
 ## System Architecture
 
@@ -225,7 +269,7 @@ The specification was followed as written. Where it left room, the smallest opti
 - **Doctor pickers** (the patient filter and the edit form) load the first 50 doctors, the API's page-size cap, and filter them in the browser.
 - **Cache Components** are switched off in `next.config.ts`. The app fetches everything on the client, and the feature caused false hydration and prefetch-validation errors in development.
 - **Demo credentials box** on the sign-in page is optional, was requested after the specification, and appears only when both `NEXT_PUBLIC_DEMO_*` variables are set.
-- **Rate limits:** 5 failed logins per 15 minutes per IP, and 600 API requests per 15 minutes per IP. Behind a reverse proxy, set Express's `trust proxy` so the real client IP is used; this is not configured by default.
+- **Rate limits:** 5 failed logins per 15 minutes per IP, and 600 API requests per 15 minutes per IP. Behind a reverse proxy (such as Vercel) set `TRUST_PROXY` so the real client IP is used; it defaults to `0`.
 
 ## Visual Evidence
 
