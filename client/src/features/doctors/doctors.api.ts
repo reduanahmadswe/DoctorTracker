@@ -12,6 +12,7 @@ import type {
 
 export const doctorKeys = {
   all: ["doctors"] as const,
+  lists: ["doctors", "list"] as const,
   list: (filters: DoctorListFilters) => ["doctors", "list", filters] as const,
   filterOptions: ["doctors", "filters"] as const,
   detail: (id: string) => ["doctors", "detail", id] as const,
