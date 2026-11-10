@@ -4,6 +4,8 @@
 
 Doctor Tracker is a secure admin web application for managing doctors and their patients. An authenticated administrator can add doctors, search and filter them by name, specialization, hospital and creation date, open a doctor to see and manage their patients, and work with every patient on a dedicated page with search, condition, doctor and date filters. A dashboard turns the data into totals, patients per doctor, a per-day activity trend and a condition breakdown. It is built for speed and clarity: a Next.js client with a calm clinical interface, a standalone Express REST API, and MongoDB with compound, text and covered indexes plus aggregation pipelines, so lists, search, filters, pagination and charts stay fast as the data grows.
 
+**Live demo:** <https://doctor-tracker-ykfh.vercel.app> (the API runs behind the same domain; its health check is <https://doctor-tracker-ykfh.vercel.app/api/v1/health>). Sign in with the demo account `admin@example.com` and password `change-me-please`; the sign-in page also has a one-click "Fill demo credentials" button. It is a public demo, so please do not store real patient data in it.
+
 ## Setup Guide
 
 ### Prerequisites
