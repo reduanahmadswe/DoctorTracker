@@ -13,6 +13,15 @@ const isDuplicateKeyError = (error: unknown): error is { code: number; keyValue?
   'code' in error &&
   error.code === DUPLICATE_KEY_CODE;
 
+const isBodyParserError = (error: unknown): error is { status: number; message: string } =>
+  typeof error === 'object' &&
+  error !== null &&
+  'type' in error &&
+  typeof error.type === 'string' &&
+  error.type.startsWith('entity.') &&
+  'status' in error &&
+  typeof error.status === 'number';
+
 const formatZodErrors = (error: ZodError): FieldError[] =>
   error.issues.map((issue) => ({ field: issue.path.join('.'), message: issue.message }));
 
@@ -27,6 +36,10 @@ export const errorHandler: ErrorRequestHandler = (error: unknown, _req, res, nex
   }
   if (error instanceof mongoose.Error.CastError) {
     return sendError(res, 400, `Invalid value for ${error.path}`);
+  }
+  if (isBodyParserError(error)) {
+    const message = error.status === 413 ? 'Request body too large' : 'Malformed request body';
+    return sendError(res, error.status, message);
   }
   if (isDuplicateKeyError(error)) {
     const fields = Object.keys(error.keyValue ?? {}).join(', ');
