@@ -5,7 +5,13 @@ import {
   PatientModel,
 } from '../patients/patient.model.js';
 import { listDays, resolveDayRange } from './dashboard.range.js';
-import { dailyCountsPipeline, patientBreakdownPipeline } from './dashboard.pipelines.js';
+import {
+  dailyCountsPipeline,
+  PATIENTS_BY_CONDITION_INDEX,
+  PATIENTS_BY_DOCTOR_INDEX,
+  patientsByConditionPipeline,
+  patientsPerDoctorPipeline,
+} from './dashboard.pipelines.js';
 import type { DashboardStatsQuery } from './dashboard.schemas.js';
 
 interface DailyCount {
@@ -13,14 +19,16 @@ interface DailyCount {
   count: number;
 }
 
-interface PatientBreakdown {
-  perDoctor: {
-    doctorId: { toString(): string };
-    name: string;
-    specialization: string;
-    count: number;
-  }[];
-  byCondition: { _id: PatientCondition; count: number }[];
+interface DoctorPatientCount {
+  doctorId: { toString(): string };
+  name: string;
+  specialization: string;
+  count: number;
+}
+
+interface ConditionCount {
+  _id: PatientCondition;
+  count: number;
 }
 
 export interface DashboardStats {
@@ -34,22 +42,27 @@ export interface DashboardStats {
 const toCountMap = (rows: DailyCount[]): Map<string, number> =>
   new Map(rows.map(({ _id, count }) => [_id, count]));
 
-// totals, breakdowns and the doctors/patients-per-condition charts describe the whole dataset;
-// only dateStats follows the requested range (UTC days, missing days filled with 0).
+// Totals and both breakdowns describe the whole dataset; only dateStats follows the requested
+// range (UTC days, missing days filled with 0).
 export const getDashboardStats = async (query: DashboardStatsQuery): Promise<DashboardStats> => {
   const range = resolveDayRange(query);
   const start = new Date(`${range.from}T00:00:00.000Z`);
   const end = new Date(`${range.to}T23:59:59.999Z`);
 
-  const [doctorTotal, patientTotal, breakdown, patientDays, doctorDays] = await Promise.all([
-    DoctorModel.estimatedDocumentCount(),
-    PatientModel.estimatedDocumentCount(),
-    PatientModel.aggregate<PatientBreakdown>(patientBreakdownPipeline()),
-    PatientModel.aggregate<DailyCount>(dailyCountsPipeline(start, end)),
-    DoctorModel.aggregate<DailyCount>(dailyCountsPipeline(start, end)),
-  ]);
+  const [doctorTotal, patientTotal, perDoctor, byCondition, patientDays, doctorDays] =
+    await Promise.all([
+      DoctorModel.estimatedDocumentCount(),
+      PatientModel.estimatedDocumentCount(),
+      PatientModel.aggregate<DoctorPatientCount>(patientsPerDoctorPipeline()).hint(
+        PATIENTS_BY_DOCTOR_INDEX,
+      ),
+      PatientModel.aggregate<ConditionCount>(patientsByConditionPipeline()).hint(
+        PATIENTS_BY_CONDITION_INDEX,
+      ),
+      PatientModel.aggregate<DailyCount>(dailyCountsPipeline(start, end)),
+      DoctorModel.aggregate<DailyCount>(dailyCountsPipeline(start, end)),
+    ]);
 
-  const { perDoctor, byCondition } = breakdown[0] ?? { perDoctor: [], byCondition: [] };
   const conditionCounts = new Map(byCondition.map(({ _id, count }) => [_id, count]));
   const patientsPerDay = toCountMap(patientDays);
   const doctorsPerDay = toCountMap(doctorDays);
