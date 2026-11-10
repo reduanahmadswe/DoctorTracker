@@ -81,7 +81,9 @@ npm run dev:server
 npm run dev:client
 ```
 
-Then open <http://localhost:3000> and sign in with the values you set for `SEED_ADMIN_EMAIL` and `SEED_ADMIN_PASSWORD`. With the unchanged example files that is `admin@example.com` and `change-me-please`; change them before using the app for anything real.
+Then open <http://localhost:3000> and sign in with the values you set for `SEED_ADMIN_EMAIL` and `SEED_ADMIN_PASSWORD`.
+
+**Sign-in credentials.** With the unchanged example files the account is `admin@example.com` with the password `change-me-please`, and the sign-in page shows a demo box with a one-click "Fill demo credentials" button. Those are demo values for local use and for reviewers: choose your own `SEED_ADMIN_PASSWORD` for any deployment that holds real data, and leave the `NEXT_PUBLIC_DEMO_*` variables out there.
 
 ### Useful commands
 
@@ -92,6 +94,7 @@ Then open <http://localhost:3000> and sign in with the values you set for `SEED_
 | `npm run build` | Builds both apps for production |
 | `npm run start --workspace server` | Runs the built API (`node dist/server.js`) |
 | `npm run start --workspace client` | Runs the built Next.js app |
+| `npm run backfill:search --workspace server` | One-time step for a database created before prefix search existed: rebuilds the search keywords of every doctor and patient and replaces the old text indexes. New databases do not need it. |
 
 ### Continuous integration
 
@@ -133,10 +136,12 @@ Things to know about the serverless deployment:
 
 - The browser only talks to the client's domain, which forwards `/api/*` to the API, so the login cookie stays first-party. That is why `API_URL` must be correct.
 - Each API request may run on a fresh instance. The database connection is reused while an instance is warm, and the first request after idle time is slower.
-- The rate limiters keep their counters in memory, so on serverless they are per instance and best effort. For strict limits use a shared store such as Redis.
+- The per-IP rate limiters keep their counters in memory, so on serverless they are per instance and best effort. Login attempts are additionally counted **per account in MongoDB** (the self-expiring `rate_limits` collection), which every instance shares, so brute-forcing a password is limited even though Vercel hides the visitor's IP from the API.
 - Functions are limited to 15 seconds (`server/vercel.json`).
 
 ## System Architecture
+
+> **Note on the specification.** Section 6 of the assignment first describes a full-stack application "inside Next.js" and then states explicitly that the frontend is a separate Next.js client and the backend a separate standalone Node.js and Express server that the client calls over REST. The two statements conflict; this project follows the explicit one, so `client/` and `server/` are independent apps.
 
 ```mermaid
 flowchart LR
@@ -160,7 +165,7 @@ flowchart LR
 
 ### Authentication flow
 
-1. `POST /api/v1/auth/login` checks the credentials (bcrypt, cost 12; the same generic error for an unknown email and a wrong password) and sets a signed JWT in an **httpOnly, SameSite=Lax cookie** named `token` (`Secure` in production). The login route is limited to 5 failed attempts per 15 minutes per IP.
+1. `POST /api/v1/auth/login` checks the credentials (bcrypt, cost 12; the same generic error for an unknown email and a wrong password) and sets a signed JWT in an **httpOnly, SameSite=Lax cookie** named `token` (`Secure` in production). The login route is limited to 5 failed attempts per 15 minutes, counted both per IP and per account (the account counter lives in MongoDB so it is shared by every server instance).
 2. `client/src/proxy.ts` (Next.js 16's middleware) redirects visitors without a `token` cookie to `/login?next=...`, and sends signed-in visitors away from `/login`. This is only an optimistic check on cookie presence.
 3. The real check happens on the server: the dashboard layout asks `GET /auth/me` through TanStack Query and shows nothing until it succeeds. The `authenticate` middleware verifies the JWT and loads the user; `authorize("admin")` guards every non-auth route (401 when not signed in, 403 for a wrong role).
 4. A 401 anywhere clears the stale cookie through `POST /auth/logout` and sends the user to `/login`. Logout clears the cookie and the query cache.
@@ -226,8 +231,9 @@ All paths are under `/api/v1` and every route except `/auth/login`, `/auth/logou
 
 **What the app does.**
 
-- **Indexes follow the query shapes.** Doctors: `{createdAt: -1}`, `{specialization: 1, createdAt: -1}`, `{hospital: 1, createdAt: -1}`, a unique `{email: 1}` and a weighted text index (name 10, specialization 5, hospital 3, email 1). Patients: `{createdAt: -1}`, `{doctor: 1, createdAt: -1}`, `{condition: 1, createdAt: -1}` and a text index on name and phone. Putting `createdAt` second lets MongoDB filter on the equality field and return rows already sorted, so there is no in-memory sort.
-- **One filter object, `lean()`, parallel count.** Each list builds its filter once, uses `.lean()` with only the needed fields, and runs `find` and `countDocuments` with `Promise.all`. Search uses `$text` and sorts by text score first.
+- **Indexes follow the query shapes.** Doctors: `{createdAt: -1}`, `{specialization: 1, createdAt: -1}`, `{hospital: 1, createdAt: -1}`, a unique `{email: 1}` and `{searchKeywords: 1, createdAt: -1}` for search. Patients: `{createdAt: -1}`, `{doctor: 1, createdAt: -1}`, `{condition: 1, createdAt: -1}` and `{searchKeywords: 1, createdAt: -1}`. Putting `createdAt` second lets MongoDB filter on the equality field and return rows already sorted, so there is no in-memory sort.
+- **One filter object, `lean()`, parallel count.** Each list builds its filter once, uses `.lean()` with only the needed fields, and runs `find` and `countDocuments` with `Promise.all`. 
+- **Search matches partial words through an index.** Each doctor and patient stores `searchKeywords`: every prefix (1 to 15 characters) of every word in its searchable fields (name, specialization, hospital and email for doctors; name and phone for patients). It is refreshed automatically on create and save by a `validate` hook, and is never sent to clients. A search such as `dr ame` becomes `{ searchKeywords: { $all: ["dr", "ame"] } }`, so every typed word must start some word of the record, and it is answered by an ordinary multikey index scan that is already sorted newest first. A MongoDB text index only matches whole words, so `neuro` would not have found Neurology.
 - **No N+1.** Patient counts for a page of doctors come from a single `$group` aggregation, and the patients list adds doctor names with one extra query by `_id`.
 - **The dashboard is aggregation pipelines.** Per-day counts are a `$match` on the indexed `createdAt` followed by a `$group` by UTC day. The patients-per-doctor and per-condition breakdowns group on indexed fields and are hinted to those indexes, so they are answered from the index alone (covered) without reading documents. They are separate pipelines rather than one `$facet`, because a `$facet` forced a collection scan. The `$lookup` that adds doctor names runs only on the 10 grouped rows. Indexes are built before the server starts accepting requests.
 
@@ -239,23 +245,25 @@ All paths are under `/api/v1` and every route except `/auth/login`, `/auth/logou
 | Doctors: by specialization | `IXSCAN specialization_1_createdAt_-1` | 3 / 3 |
 | Doctors: by hospital | `IXSCAN hospital_1_createdAt_-1` | 5 / 5 |
 | Doctors: date range | `IXSCAN createdAt_-1` | 8 / 8 |
-| Doctors: text search | `IXSCAN doctor_text_search` | 2 / 2 |
+| Doctors: search `neuro` | `IXSCAN searchKeywords_1_createdAt_-1` | 2 / 2 |
+| Doctors: search `neuro` + specialization | `IXSCAN searchKeywords_1_createdAt_-1` | 2 / 2 |
 | Doctors: filter dropdown values | `DISTINCT_SCAN` (covered) | 6 / 0 |
 | Doctors: lookup by email or id | `email_1`, `_id_` | 1 / 1 |
 | Patients: default list, date range | `IXSCAN createdAt_-1` | 10 / 10 |
 | Patients: by condition | `IXSCAN condition_1_createdAt_-1` | 10 / 10 |
 | Patients: by doctor | `IXSCAN doctor_1_createdAt_-1` | 10 / 10 |
 | Patients: doctor + condition | `IXSCAN doctor_1_createdAt_-1` | 12 / 12 |
-| Patients: text search | `IXSCAN patient_text_search` | 12 / 12 |
+| Patients: search `kha` | `IXSCAN searchKeywords_1_createdAt_-1` | 10 / 10 |
+| Patients: search `kha` + condition | `IXSCAN searchKeywords_1_createdAt_-1` | 17 / 17 |
 | Patient counts for the doctors list | `IXSCAN doctor_1_createdAt_-1` (covered) | 12 / 0 |
 | Dashboard: patients per doctor | `IXSCAN doctor_1_createdAt_-1` (covered, hinted) | 110 / 0 |
 | Dashboard: patients by condition | `IXSCAN condition_1_createdAt_-1` (covered, hinted) | 110 / 0 |
 | Dashboard: new patients and doctors per day | `IXSCAN createdAt_-1` (covered) | 102 / 0 and 8 / 0 |
-| Count behind each list's pagination total | `COUNT_SCAN` or the same index as the list | about 0 documents |
+| Count behind each list's pagination total (also with search) | `COUNT_SCAN` or the same index as the list | about 0 documents |
 
-Before the hint was added, the two dashboard breakdowns did a collection scan of all 110 patients; afterwards they read no documents at all.
+The search rows were measured on a scratch database with 13 doctors and 103 patients; the rest on the 14 doctor and 110 patient database described above. Before the hint was added, the two dashboard breakdowns did a collection scan of all 110 patients; afterwards they read no documents at all.
 
-**Trade-offs.** Each index costs write time and storage, which is acceptable for read-heavy admin data. MongoDB text search matches whole words, so `neurology` finds Neurology but `neuro` does not; that is the price of using the text index the specification asks for instead of unindexed regular expressions. The dashboard breakdowns are hinted to named indexes, which is why indexes are built at startup.
+**Trade-offs.** Each index costs write time and storage, which is acceptable for read-heavy admin data. The keyword arrays make writes and the index larger (each word contributes up to 15 short strings), and results are ordered by date rather than by relevance. Both are fine for admin data of this size and avoid unindexed regular expressions. A word is matched from its beginning, so `ology` does not find Neurology. The dashboard breakdowns are hinted to named indexes, which is why indexes are built at startup.
 
 ### Minimal choices made while building
 
@@ -266,10 +274,10 @@ The specification was followed as written. Where it left room, the smallest opti
 - **Authentication** has one role, `admin`, created only by the seed script. There is no sign-up page. Tokens are stateless, so logout clears the cookie rather than revoking the token.
 - **Date filters** compare `createdAt` with inclusive UTC day bounds. The dashboard also buckets days in UTC, so the two always agree.
 - **Dashboard scope:** the totals, patients per doctor (top 10) and condition breakdown describe all data; only the activity chart follows the selected range (default last 30 days, at most 366).
-- **Doctor pickers** (the patient filter and the edit form) load the first 50 doctors, the API's page-size cap, and filter them in the browser.
+- **Doctor pickers** (the patient filter and the edit form) search on the server as you type (debounced, 20 matches), so they work with any number of doctors.
 - **Cache Components** are switched off in `next.config.ts`. The app fetches everything on the client, and the feature caused false hydration and prefetch-validation errors in development.
 - **Demo credentials box** on the sign-in page is optional, was requested after the specification, and appears only when both `NEXT_PUBLIC_DEMO_*` variables are set.
-- **Rate limits:** 5 failed logins per 15 minutes per IP, and 600 API requests per 15 minutes per IP. Behind a reverse proxy (such as Vercel) set `TRUST_PROXY` so the real client IP is used; it defaults to `0`.
+- **Rate limits:** 5 failed logins per 15 minutes per IP and per account (the account counter is stored in MongoDB), and 600 API requests per 15 minutes per IP. Behind a reverse proxy (such as Vercel) set `TRUST_PROXY` so the real client IP is used; it defaults to `0`. A consequence of the per-account counter is that someone who knows the admin email can block that account's logins for 15 minutes by failing on purpose; existing sessions are not affected.
 
 ## Visual Evidence
 
