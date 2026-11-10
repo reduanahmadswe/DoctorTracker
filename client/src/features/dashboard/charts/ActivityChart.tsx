@@ -65,7 +65,7 @@ export default function ActivityChart({ data }: { data: Day[] }) {
           />
           <Legend verticalAlign="top" height={32} iconType="circle" />
           <Area
-            type="monotone"
+            type="linear"
             dataKey="patients"
             name="New patients"
             stroke={CHART_COLORS.primary}
@@ -74,7 +74,7 @@ export default function ActivityChart({ data }: { data: Day[] }) {
             strokeWidth={2}
           />
           <Area
-            type="monotone"
+            type="linear"
             dataKey="doctors"
             name="New doctors"
             stroke={CHART_COLORS.info}

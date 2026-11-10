@@ -8,7 +8,7 @@ import { ChartTooltip } from "./ChartTooltip";
 type Row = DashboardStats["patientsPerDoctor"][number];
 
 const ROW_HEIGHT = 40;
-const MAX_LABEL_LENGTH = 18;
+const MAX_LABEL_LENGTH = 19;
 
 const truncate = (label: string): string =>
   label.length > MAX_LABEL_LENGTH ? `${label.slice(0, MAX_LABEL_LENGTH - 1)}…` : label;
@@ -36,7 +36,7 @@ export default function PatientsPerDoctorChart({ data }: { data: Row[] }) {
           <YAxis
             type="category"
             dataKey="name"
-            width={120}
+            width={136}
             tick={AXIS_TICK}
             tickLine={false}
             axisLine={false}

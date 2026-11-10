@@ -62,7 +62,7 @@ export default function ConditionChart({ data }: { data: Slice[] }) {
           <span className="text-xs text-text-muted">patients</span>
         </div>
       </div>
-      <ul className="grid grid-cols-2 gap-x-4 gap-y-2">
+      <ul className="grid grid-cols-1 gap-x-4 gap-y-2 min-[400px]:grid-cols-2">
         {data.map((slice) => (
           <li key={slice.condition} className="flex items-center gap-2 text-sm">
             <span
