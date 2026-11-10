@@ -2,7 +2,7 @@
 // (utils/dateRange.ts) and the "UTC" timezone passed to $dateToString in the pipelines.
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-export const DEFAULT_RANGE_DAYS = 30;
+const DEFAULT_RANGE_DAYS = 30;
 export const MAX_RANGE_DAYS = 366;
 
 export interface DayRange {

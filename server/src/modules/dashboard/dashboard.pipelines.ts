@@ -1,7 +1,7 @@
 import type { PipelineStage } from 'mongoose';
 
 // Rows shown in the "patients per doctor" chart; keeps the chart readable.
-export const TOP_DOCTORS_LIMIT = 10;
+const TOP_DOCTORS_LIMIT = 10;
 
 // Per-day grouping always uses UTC so day buckets match the UTC day bounds of the range filter.
 const DAY_FORMAT = '%Y-%m-%d';
