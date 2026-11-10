@@ -1,11 +1,7 @@
 import type { QueryFilter } from 'mongoose';
 import type { PaginationMeta } from '../../utils/apiResponse.js';
 import { ApiError } from '../../utils/ApiError.js';
-import {
-  buildListSort,
-  buildSearchAndDateFilter,
-  buildTextScoreProjection,
-} from '../../utils/listQuery.js';
+import { buildSearchAndDateFilter, LIST_SORT } from '../../utils/listQuery.js';
 import { buildPaginationMeta, toSkip } from '../../utils/pagination.js';
 import { PatientModel } from '../patients/patient.model.js';
 import { type Doctor, DoctorModel } from './doctor.model.js';
@@ -59,7 +55,7 @@ export const buildDoctorListQuery = ({
     ...(specialization && { specialization }),
     ...(hospital && { hospital }),
   };
-  return { filter, projection: buildTextScoreProjection(q), sort: buildListSort(q) };
+  return { filter, sort: LIST_SORT };
 };
 
 const countPatientsByDoctor = async (doctorIds: unknown[]): Promise<Map<string, number>> => {
@@ -79,10 +75,10 @@ export const createDoctor = async (input: CreateDoctorInput): Promise<DoctorDto>
 export const listDoctors = async (
   query: ListDoctorsQuery,
 ): Promise<{ items: DoctorListItemDto[]; meta: PaginationMeta }> => {
-  const { filter, projection, sort } = buildDoctorListQuery(query);
+  const { filter, sort } = buildDoctorListQuery(query);
 
   const [doctors, total] = await Promise.all([
-    DoctorModel.find(filter, projection)
+    DoctorModel.find(filter)
       .select(DOCTOR_FIELDS)
       .sort(sort)
       .skip(toSkip(query))

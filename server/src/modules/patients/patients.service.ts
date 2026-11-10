@@ -1,11 +1,7 @@
 import type { QueryFilter } from 'mongoose';
 import type { PaginationMeta } from '../../utils/apiResponse.js';
 import { ApiError } from '../../utils/ApiError.js';
-import {
-  buildListSort,
-  buildSearchAndDateFilter,
-  buildTextScoreProjection,
-} from '../../utils/listQuery.js';
+import { buildSearchAndDateFilter, LIST_SORT } from '../../utils/listQuery.js';
 import { buildPaginationMeta, toSkip } from '../../utils/pagination.js';
 import { assertDoctorExists } from '../doctors/doctors.service.js';
 import { type Patient, type PatientCondition, PatientModel } from './patient.model.js';
@@ -54,19 +50,19 @@ export const buildPatientListQuery = ({ q, condition, doctor, from, to }: ListPa
     ...(condition && { condition }),
     ...(doctor && { doctor }),
   };
-  return { filter, projection: buildTextScoreProjection(q), sort: buildListSort(q) };
+  return { filter, sort: LIST_SORT };
 };
 
 // populate() over $lookup: the page holds at most 50 patients, so populate resolves their doctors
 // with one extra indexed `_id: { $in }` query, keeps the main query a plain indexed find (which
-// can use $text and sort/skip/limit directly) and avoids a per-document join inside the pipeline.
+// can use the keyword index and sort/skip/limit directly) and avoids a per-document join.
 export const listPatients = async (
   query: ListPatientsQuery,
 ): Promise<{ items: PatientDto[]; meta: PaginationMeta }> => {
-  const { filter, projection, sort } = buildPatientListQuery(query);
+  const { filter, sort } = buildPatientListQuery(query);
 
   const [patients, total] = await Promise.all([
-    PatientModel.find(filter, projection)
+    PatientModel.find(filter)
       .select(PATIENT_FIELDS)
       .sort(sort)
       .skip(toSkip(query))
@@ -82,11 +78,13 @@ export const listPatients = async (
 export const updatePatient = async (id: string, input: UpdatePatientInput): Promise<PatientDto> => {
   if (input.doctor) await assertDoctorExists(input.doctor);
 
-  const patient = await PatientModel.findByIdAndUpdate(
-    id,
-    { $set: input },
-    { new: true, runValidators: true },
-  )
+  // Loading and saving the document (instead of a raw update) refreshes the search keywords.
+  const existing = await PatientModel.findById(id);
+  if (!existing) throw ApiError.notFound('Patient not found');
+  existing.set(input);
+  await existing.save();
+
+  const patient = await PatientModel.findById(id)
     .select(PATIENT_FIELDS)
     .populate<Pick<PatientRecord, 'doctor'>>('doctor', DOCTOR_SUMMARY_FIELDS)
     .lean();

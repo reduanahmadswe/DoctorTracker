@@ -1,4 +1,5 @@
 import { type InferSchemaType, model, Schema } from 'mongoose';
+import { buildSearchKeywords } from '../../utils/searchKeywords.js';
 
 const doctorSchema = new Schema(
   {
@@ -7,15 +8,24 @@ const doctorSchema = new Schema(
     hospital: { type: String, required: true, trim: true, maxlength: 150 },
     phone: { type: String, required: true, trim: true, maxlength: 20 },
     email: { type: String, required: true, lowercase: true, trim: true, maxlength: 254 },
+    // Word prefixes used by the search box; derived from the fields above, never sent to clients.
+    searchKeywords: { type: [String], select: false },
   },
   { timestamps: true },
 );
 
+// Runs for create, save and insertMany, so the keywords always follow the searchable fields.
+doctorSchema.pre('validate', function () {
+  this.searchKeywords = buildSearchKeywords(
+    this.name,
+    this.specialization,
+    this.hospital,
+    this.email,
+  );
+});
+
 doctorSchema.index({ email: 1 }, { unique: true });
-doctorSchema.index(
-  { name: 'text', specialization: 'text', hospital: 'text', email: 'text' },
-  { weights: { name: 10, specialization: 5, hospital: 3, email: 1 }, name: 'doctor_text_search' },
-);
+doctorSchema.index({ searchKeywords: 1, createdAt: -1 });
 doctorSchema.index({ createdAt: -1 });
 doctorSchema.index({ specialization: 1, createdAt: -1 });
 doctorSchema.index({ hospital: 1, createdAt: -1 });

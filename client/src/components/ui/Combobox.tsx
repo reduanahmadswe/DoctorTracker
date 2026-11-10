@@ -16,13 +16,17 @@ interface ComboboxProps {
   label: string;
   options: readonly ComboboxOption[];
   value: string;
-  onChange: (value: string) => void;
+  onChange: (value: string, option: ComboboxOption) => void;
   // Label of the selected value when it is not among `options` (e.g. beyond the loaded page).
   selectedLabel?: string;
   placeholder?: string;
   // Adds a first entry that resets the value to "" (used by filters).
   emptyOptionLabel?: string;
   loading?: boolean;
+  // Called with the typed text, so the parent can fetch matching options from the server.
+  onQueryChange?: (query: string) => void;
+  // Set to false when the options are already filtered by the server.
+  filterLocally?: boolean;
   error?: string;
   className?: string;
 }
@@ -41,6 +45,8 @@ export const Combobox = ({
   placeholder = "Select...",
   emptyOptionLabel,
   loading,
+  onQueryChange,
+  filterLocally = true,
   error,
   className,
 }: ComboboxProps) => {
@@ -51,20 +57,27 @@ export const Combobox = ({
   const [activeIndex, setActiveIndex] = useState(0);
 
   const items = useMemo<ComboboxOption[]>(() => {
-    const filtered = options.filter((option) => matches(option, query.trim()));
+    const filtered = filterLocally
+      ? options.filter((option) => matches(option, query.trim()))
+      : [...options];
     return emptyOptionLabel && !query ? [{ value: "", label: emptyOptionLabel }, ...filtered] : filtered;
-  }, [emptyOptionLabel, options, query]);
+  }, [emptyOptionLabel, filterLocally, options, query]);
 
   const selected = options.find((option) => option.value === value);
   const displayLabel = selected?.label ?? (value ? selectedLabel : undefined) ?? "";
 
+  const updateQuery = (next: string) => {
+    setQuery(next);
+    onQueryChange?.(next);
+  };
+
   const close = () => {
     setOpen(false);
-    setQuery("");
+    updateQuery("");
   };
 
   const choose = (option: ComboboxOption) => {
-    onChange(option.value);
+    onChange(option.value, option);
     close();
     inputRef.current?.blur();
   };
@@ -105,7 +118,7 @@ export const Combobox = ({
           value={open ? query : displayLabel}
           placeholder={displayLabel || placeholder}
           onChange={(event) => {
-            setQuery(event.target.value);
+            updateQuery(event.target.value);
             setActiveIndex(0);
           }}
           onFocus={() => setOpen(true)}

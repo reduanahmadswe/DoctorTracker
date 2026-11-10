@@ -1,9 +1,10 @@
-import type { SortOrder } from 'mongoose';
 import { buildCreatedAtFilter } from './dateRange.js';
+import { buildKeywordFilter } from './searchKeywords.js';
 
-type ListSort = Record<string, SortOrder | { $meta: 'textScore' }>;
+// Newest first; served by the {createdAt: -1} index and the compound indexes that end in it.
+export const LIST_SORT = { createdAt: -1 } as const;
 
-// Shared pieces of the search + date-range + sort logic used by every paginated list.
+// Shared pieces of the search + date-range logic used by every paginated list.
 export const buildSearchAndDateFilter = ({
   q,
   from,
@@ -15,14 +16,7 @@ export const buildSearchAndDateFilter = ({
 }) => {
   const createdAt = buildCreatedAtFilter({ from, to });
   return {
-    ...(q && { $text: { $search: q } }),
+    ...(q && buildKeywordFilter(q)),
     ...(createdAt && { createdAt }),
   };
 };
-
-export const buildTextScoreProjection = (q?: string) =>
-  q ? { score: { $meta: 'textScore' as const } } : undefined;
-
-// Best text match first when searching, otherwise newest first.
-export const buildListSort = (q?: string): ListSort =>
-  q ? { score: { $meta: 'textScore' }, createdAt: -1 } : { createdAt: -1 };
