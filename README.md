@@ -51,7 +51,7 @@ The server validates these at startup and exits with a clear message if one is m
 
 | Variable | Required | Description |
 | --- | --- | --- |
-| `API_URL` | yes | Base URL of the Express API, for example `http://localhost:5000`. Next.js forwards `/api/*` requests to it, so the browser only ever talks to the client origin. |
+| `API_URL` | local development | Base URL of the Express API, for example `http://localhost:5000`. Next.js forwards `/api/*` requests to it, so the browser only ever talks to the client origin. On Vercel the `/api` path is routed to the API service by `vercel.json`, so this is not needed there. |
 | `NEXT_PUBLIC_DEMO_EMAIL` | no | Together with the next variable, shows a demo login box with a one-click fill button on the sign-in page. Leave both out in production. |
 | `NEXT_PUBLIC_DEMO_PASSWORD` | no | Must match `SEED_ADMIN_PASSWORD` if you use the demo box. |
 
@@ -110,34 +110,39 @@ To keep broken code out of production, turn on branch protection for `main` (Git
 
 ### Deploy to Vercel
 
-The API and the client are deployed as **two Vercel projects from the same repository**. Vercel's Git integration is the continuous delivery: every push to `main` becomes a production deployment and every pull request gets a preview deployment.
+The whole app is deployed as **one Vercel project with two services**, described by the `vercel.json` at the repository root:
+
+| Service | Folder | Public path | What it is |
+| --- | --- | --- | --- |
+| `client` | `client/` | everything except `/api/*` | The Next.js app |
+| `server` | `server/` | `/api/*` | The Express API (built with `npm run build`, started from `dist/app.js`) |
+
+Both are served from the **same domain**. The login cookie is therefore first-party, CORS is not involved, and the client needs no `API_URL`. Vercel's Git integration is the continuous delivery: every push to `main` becomes a production deployment and every pull request gets a preview deployment.
 
 **Before you start**, create a MongoDB Atlas cluster and a database user, and under *Network Access* allow `0.0.0.0/0` (Vercel functions have no fixed IP addresses).
 
-1. **Deploy the API.** In Vercel choose *Add New → Project*, import the repository and set **Root Directory** to `server`. Leave the framework preset on *Other*; `server/vercel.json` already contains the build command and `server/api/[...path].js` serves every `/api/*` request through the compiled Express app. Add these environment variables, then deploy:
+1. **Import the repository.** In Vercel choose *Add New → Project* and import the repository. Keep the root directory at the repository root; Vercel reads `services` from `vercel.json` and builds `client` and `server` separately.
+2. **Add the environment variables** (project settings, shared by both services):
 
    | Variable | Value |
    | --- | --- |
    | `MONGODB_URI` | Your Atlas connection string, including the database name (for example `.../doctor-tracker`) |
    | `JWT_SECRET` | A new random string of at least 32 characters (never reuse the example) |
    | `JWT_EXPIRES_IN` | `1d` |
-   | `CLIENT_ORIGIN` | The client's URL (set it in step 3 if you do not know it yet) |
+   | `CLIENT_ORIGIN` | The project's own URL, for example `https://doctor-tracker.vercel.app` (add it after the first deployment gives you the URL, then redeploy) |
    | `TRUST_PROXY` | `1` |
 
-   Vercel sets `NODE_ENV=production`, which turns on `Secure` cookies and hides error details. Check `https://<your-api>.vercel.app/api/v1/health`.
+   Vercel sets `NODE_ENV=production`, which turns on `Secure` cookies and hides error details. Do not set the `NEXT_PUBLIC_DEMO_*` variables in production.
+3. **Deploy**, then open `https://<your-project>.vercel.app/api/v1/health`; it should answer `{"success":true,...}`. The app itself is at the project's root URL.
+4. **Create the admin account** once, from your machine, against the Atlas database: put the Atlas `MONGODB_URI` and the `SEED_ADMIN_EMAIL` and `SEED_ADMIN_PASSWORD` you want into `server/.env`, run `npm run seed:admin`, then switch `server/.env` back to your local database. Do not run `seed:demo` against production data. If the database already contains records from before prefix search existed, also run `npm run backfill:search --workspace server` once.
 
-2. **Deploy the client.** Add a second project from the same repository with **Root Directory** `client` (framework preset *Next.js* is detected). Set `API_URL` to the API's URL without a trailing slash, for example `https://<your-api>.vercel.app`. The value is read at build time by the `/api` rewrite, so redeploy after changing it. Do not set the `NEXT_PUBLIC_DEMO_*` variables in production.
+Things to know about the deployment:
 
-3. **Point CORS at the client.** In the API project set `CLIENT_ORIGIN` to the client's URL and redeploy it.
-
-4. **Create the admin account** once, from your machine, against the Atlas database: put the Atlas `MONGODB_URI` and the `SEED_ADMIN_EMAIL` and `SEED_ADMIN_PASSWORD` you want into `server/.env`, run `npm run seed:admin`, then switch `server/.env` back to your local database. Do not run `seed:demo` against production data.
-
-Things to know about the serverless deployment:
-
-- The browser only talks to the client's domain, which forwards `/api/*` to the API, so the login cookie stays first-party. That is why `API_URL` must be correct.
-- Each API request may run on a fresh instance. The database connection is reused while an instance is warm, and the first request after idle time is slower.
-- The per-IP rate limiters keep their counters in memory, so on serverless they are per instance and best effort. Login attempts are additionally counted **per account in MongoDB** (the self-expiring `rate_limits` collection), which every instance shares, so brute-forcing a password is limited even though Vercel hides the visitor's IP from the API.
-- Functions are limited to 15 seconds (`server/vercel.json`).
+- The API service receives the full original path (`/api/v1/...`), which is exactly how the Express app mounts its routes.
+- The browser only talks to the project's domain; `/api/*` is routed to the `server` service and everything else to `client`. The `/api` rewrite in `client/next.config.ts` only matters for local development, where it forwards to `API_URL`.
+- The Express app is a single Vercel Function. It opens its MongoDB connection on the first request of an instance and reuses it while that instance is warm, so the first request after idle time is slower.
+- The per-IP rate limiters keep their counters in memory, so on serverless they are per instance and best effort. Login attempts are additionally counted **per account in MongoDB** (the self-expiring `rate_limits` collection), which every instance shares.
+- There are no bindings between the services: the browser calls the API through the public `/api` route and the server never calls the client.
 
 ## System Architecture
 
