@@ -226,3 +226,16 @@ The specification was followed as written. Where it left room, the smallest opti
 - **Cache Components** are switched off in `next.config.ts`. The app fetches everything on the client, and the feature caused false hydration and prefetch-validation errors in development.
 - **Demo credentials box** on the sign-in page is optional, was requested after the specification, and appears only when both `NEXT_PUBLIC_DEMO_*` variables are set.
 - **Rate limits:** 5 failed logins per 15 minutes per IP, and 600 API requests per 15 minutes per IP. Behind a reverse proxy, set Express's `trust proxy` so the real client IP is used; this is not configured by default.
+
+## Visual Evidence
+
+Captured from a production build with the demo data (`npm run seed:demo`). Desktop is 1440 × 900, mobile is 390 × 844.
+
+| Screen | Desktop | Mobile |
+| --- | --- | --- |
+| **Login** | <img src="docs/screenshots/login-desktop.png" alt="Login page on desktop" width="520"> | <img src="docs/screenshots/login-mobile.png" alt="Login page on mobile" width="200"> |
+| **Dashboard** | <img src="docs/screenshots/dashboard-desktop.png" alt="Dashboard on desktop" width="520"> | <img src="docs/screenshots/dashboard-mobile.png" alt="Dashboard on mobile" width="200"> |
+| **Doctors list** | <img src="docs/screenshots/doctors-desktop.png" alt="Doctors list on desktop" width="520"> | <img src="docs/screenshots/doctors-mobile.png" alt="Doctors list on mobile" width="200"> |
+| **Doctor detail** | <img src="docs/screenshots/doctor-detail-desktop.png" alt="Doctor detail on desktop" width="520"> | <img src="docs/screenshots/doctor-detail-mobile.png" alt="Doctor detail on mobile" width="200"> |
+| **Patients list** | <img src="docs/screenshots/patients-desktop.png" alt="Patients list on desktop" width="520"> | <img src="docs/screenshots/patients-mobile.png" alt="Patients list on mobile" width="200"> |
+| **Add doctor modal** | <img src="docs/screenshots/add-doctor-modal-desktop.png" alt="Add doctor modal on desktop" width="520"> | <img src="docs/screenshots/add-doctor-modal-mobile.png" alt="Add doctor modal on mobile" width="200"> |
