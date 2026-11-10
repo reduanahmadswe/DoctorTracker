@@ -2,7 +2,7 @@
 
 import { UserRound } from "lucide-react";
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
@@ -12,6 +12,7 @@ import { ErrorState } from "@/components/ui/ErrorState";
 import { Pagination } from "@/components/ui/Pagination";
 import { TableSkeleton } from "@/components/ui/Skeleton";
 import { useListParams } from "@/lib/use-list-params";
+import { useStepBackOnEmptyPage } from "@/lib/use-step-back-on-empty-page";
 import { cn } from "@/lib/utils";
 import { EditPatientDialog } from "./EditPatientDialog";
 import type { Patient } from "./patients.types";
@@ -42,11 +43,7 @@ export const PatientsView = () => {
     setPatientToDelete(null);
   };
 
-  // Deleting the last patient of a page leaves it empty: step back to the previous page.
-  const isEmptyPage = data !== undefined && data.items.length === 0 && filters.page > 1;
-  useEffect(() => {
-    if (isEmptyPage) changePage(filters.page - 1);
-  }, [isEmptyPage, filters.page, changePage]);
+  const isEmptyPage = useStepBackOnEmptyPage(data?.items.length, filters.page, changePage);
 
   return (
     <>
