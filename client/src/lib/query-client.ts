@@ -8,7 +8,7 @@ const MAX_RETRIES = 2;
 const shouldRetry = (failureCount: number, error: Error): boolean =>
   !(error instanceof ApiError && error.status < 500) && failureCount < MAX_RETRIES;
 
-export const createQueryClient = (): QueryClient =>
+const createQueryClient = (): QueryClient =>
   new QueryClient({
     defaultOptions: {
       queries: {

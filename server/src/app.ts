@@ -4,6 +4,7 @@ import express from 'express';
 import helmet from 'helmet';
 import hpp from 'hpp';
 import { env } from './config/env.js';
+import { apiRateLimiter } from './middlewares/apiRateLimiter.js';
 import { errorHandler } from './middlewares/errorHandler.js';
 import { notFound } from './middlewares/notFound.js';
 import { sanitizeInput } from './middlewares/sanitizeInput.js';
@@ -19,7 +20,7 @@ app.use(cookieParser());
 app.use(sanitizeInput);
 app.use(hpp());
 
-app.use('/api/v1', apiRouter);
+app.use('/api/v1', apiRateLimiter, apiRouter);
 
 app.use(notFound);
 app.use(errorHandler);

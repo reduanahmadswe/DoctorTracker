@@ -73,6 +73,7 @@ export const ToastProvider = ({ children }: { children: ReactNode }) => {
           return (
             <div
               key={id}
+              role={variant === "error" ? "alert" : undefined}
               className={cn(
                 "pointer-events-auto flex w-full max-w-sm items-start gap-3 rounded-card border bg-surface p-4 shadow-overlay",
                 variant === "success" ? "border-success" : "border-danger",

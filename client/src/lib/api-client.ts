@@ -48,7 +48,7 @@ const parseBody = async (response: Response): Promise<ApiSuccess<unknown> | ApiF
   }
 };
 
-export const apiRequest = async <T>(
+const apiRequest = async <T>(
   path: string,
   { method = "GET", body, params, signal, skipUnauthorizedRedirect }: RequestOptions = {},
 ): Promise<ApiResult<T>> => {

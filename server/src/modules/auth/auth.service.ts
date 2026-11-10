@@ -1,6 +1,6 @@
 import { ApiError } from '../../utils/ApiError.js';
 import type { LoginInput } from './auth.schemas.js';
-import { verifyPassword } from './password.js';
+import { MISSING_USER_PASSWORD_HASH, verifyPassword } from './password.js';
 import { signToken } from './token.js';
 import { type User, UserModel } from './user.model.js';
 
@@ -27,7 +27,10 @@ export const login = async ({
   password,
 }: LoginInput): Promise<{ token: string; user: PublicUser }> => {
   const user = await UserModel.findOne({ email }).select('+password');
-  const passwordMatches = user ? await verifyPassword(password, user.password) : false;
+  const passwordMatches = await verifyPassword(
+    password,
+    user?.password ?? MISSING_USER_PASSWORD_HASH,
+  );
   if (!user || !passwordMatches) throw ApiError.unauthorized(INVALID_CREDENTIALS_MESSAGE);
 
   return { token: signToken(user._id.toString(), user.role), user: toPublicUser(user) };

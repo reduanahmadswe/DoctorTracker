@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./Card";
 import { EmptyState } from "./EmptyState";
+import { Skeleton } from "./Skeleton";
 
 interface ChartCardProps {
   title: string;
@@ -41,6 +42,18 @@ export const ChartCard = ({
           {children}
         </div>
       )}
+    </CardContent>
+  </Card>
+);
+
+export const ChartCardSkeleton = ({ height, className }: { height: number; className?: string }) => (
+  <Card className={className}>
+    <CardHeader>
+      <Skeleton className="h-5 w-40" />
+      <Skeleton className="h-4 w-64 max-w-full" />
+    </CardHeader>
+    <CardContent className="p-4 pt-4 sm:p-6">
+      <Skeleton className="w-full" style={{ height }} />
     </CardContent>
   </Card>
 );

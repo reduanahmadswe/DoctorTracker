@@ -38,7 +38,7 @@ export const fetchDoctors = async (
   );
 
 // The API caps a page at 50 items; the doctor pickers filter this list on the client.
-export const DOCTOR_SELECT_LIMIT = 50;
+const DOCTOR_SELECT_LIMIT = 50;
 
 export const fetchDoctorSelectOptions = async (signal?: AbortSignal): Promise<DoctorListItem[]> =>
   (await api.get<DoctorListItem[]>("/doctors", { params: { limit: DOCTOR_SELECT_LIMIT }, signal }))

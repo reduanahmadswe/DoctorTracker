@@ -13,7 +13,7 @@ const ELLIPSIS = "ellipsis";
 type PageItem = number | typeof ELLIPSIS;
 
 // First, last and the neighbours of the current page; gaps collapse into an ellipsis.
-export const buildPageItems = (page: number, totalPages: number): PageItem[] => {
+const buildPageItems = (page: number, totalPages: number): PageItem[] => {
   const pages = new Set([1, totalPages, page - 1, page, page + 1]);
   const sorted = [...pages].filter((value) => value >= 1 && value <= totalPages).sort((a, b) => a - b);
   return sorted.flatMap((value, index) => {

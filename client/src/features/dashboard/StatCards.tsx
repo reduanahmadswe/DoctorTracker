@@ -26,7 +26,7 @@ const StatCard = ({ icon: Icon, label, value }: StatCardProps) => (
 const formatCount = (value: number): string => value.toLocaleString("en-US");
 
 // Average patients per doctor is derived from the totals; 0 doctors means no average yet.
-export const calculateAveragePatients = (doctors: number, patients: number): number =>
+const calculateAveragePatients = (doctors: number, patients: number): number =>
   doctors === 0 ? 0 : patients / doctors;
 
 export const StatCards = ({ stats }: { stats: DashboardStats }) => {

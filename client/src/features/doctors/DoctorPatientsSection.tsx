@@ -1,7 +1,7 @@
 "use client";
 
 import { Plus, UserRound } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { Card, CardHeader, CardTitle } from "@/components/ui/Card";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
@@ -10,6 +10,7 @@ import { ErrorState } from "@/components/ui/ErrorState";
 import { Pagination } from "@/components/ui/Pagination";
 import { TableSkeleton } from "@/components/ui/Skeleton";
 import { cn } from "@/lib/utils";
+import { useStepBackOnEmptyPage } from "@/lib/use-step-back-on-empty-page";
 import { parsePageParam, useUrlParams } from "@/lib/use-url-params";
 import { AddPatientDialog } from "./AddPatientDialog";
 import { DoctorPatientsTable } from "./DoctorPatientsTable";
@@ -45,11 +46,7 @@ export const DoctorPatientsSection = ({ doctorId, doctorName }: DoctorPatientsSe
     setPatientToDelete(null);
   };
 
-  // Deleting the last patient of a page leaves it empty: step back to the previous page.
-  const isEmptyPage = data !== undefined && data.items.length === 0 && page > 1;
-  useEffect(() => {
-    if (isEmptyPage) update({ page: page - 1 });
-  }, [isEmptyPage, page, update]);
+  const isEmptyPage = useStepBackOnEmptyPage(data?.items.length, page, handlePageChange);
 
   return (
     <Card className="overflow-hidden">

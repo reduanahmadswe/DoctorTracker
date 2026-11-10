@@ -1,7 +1,7 @@
 "use client";
 
 import { Search } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { SEARCH_DEBOUNCE_MS } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 
@@ -21,6 +21,7 @@ export const SearchInput = ({
   placeholder = "Search...",
   className,
 }: SearchInputProps) => {
+  const inputId = useId();
   const [draft, setDraft] = useState(value);
   const onSearchRef = useRef(onSearch);
 
@@ -43,7 +44,7 @@ export const SearchInput = ({
 
   return (
     <div className={cn("relative", className)}>
-      <label htmlFor="search-input" className="sr-only">
+      <label htmlFor={inputId} className="sr-only">
         {label}
       </label>
       <Search
@@ -51,7 +52,7 @@ export const SearchInput = ({
         className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-text-muted"
       />
       <input
-        id="search-input"
+        id={inputId}
         type="search"
         value={draft}
         onChange={(event) => setDraft(event.target.value)}

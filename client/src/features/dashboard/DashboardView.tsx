@@ -6,7 +6,7 @@ import { useCallback } from "react";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
-import { ChartCard } from "@/components/ui/ChartCard";
+import { ChartCard, ChartCardSkeleton } from "@/components/ui/ChartCard";
 import { DateRangeFilter } from "@/components/ui/DateRangeFilter";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { Skeleton } from "@/components/ui/Skeleton";
@@ -77,7 +77,16 @@ export const DashboardView = () => {
         </div>
       </Card>
 
-      {isPending && <StatCardsSkeleton />}
+      {isPending && (
+        <>
+          <StatCardsSkeleton />
+          <div className="grid gap-6 lg:grid-cols-5">
+            <ChartCardSkeleton className="lg:col-span-3" height={320} />
+            <ChartCardSkeleton className="lg:col-span-2" height={320} />
+          </div>
+          <ChartCardSkeleton height={300} />
+        </>
+      )}
       {isError && (
         <Card>
           <ErrorState

@@ -1,6 +1,6 @@
 import type { PaginationMeta } from '../../utils/apiResponse.js';
 import { ApiError } from '../../utils/ApiError.js';
-import { buildPaginationMeta, type Pagination } from '../../utils/pagination.js';
+import { buildPaginationMeta, type PageRequest, toSkip } from '../../utils/pagination.js';
 import { PatientModel, type PatientCondition } from '../patients/patient.model.js';
 import type { CreateDoctorPatientInput } from './doctors.schemas.js';
 import { assertDoctorExists } from './doctors.service.js';
@@ -36,7 +36,7 @@ const toDoctorPatientDto = (patient: PatientRecord): DoctorPatientDto => ({
 
 export const listDoctorPatients = async (
   doctorId: string,
-  { page, limit, skip }: Pagination,
+  pageRequest: PageRequest,
 ): Promise<{ items: DoctorPatientDto[]; meta: PaginationMeta }> => {
   await assertDoctorExists(doctorId);
   const filter = { doctor: doctorId };
@@ -45,15 +45,15 @@ export const listDoctorPatients = async (
     PatientModel.find(filter)
       .select(PATIENT_FIELDS)
       .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(limit)
+      .skip(toSkip(pageRequest))
+      .limit(pageRequest.limit)
       .lean(),
     PatientModel.countDocuments(filter),
   ]);
 
   return {
     items: patients.map(toDoctorPatientDto),
-    meta: buildPaginationMeta({ page, limit }, total),
+    meta: buildPaginationMeta(pageRequest, total),
   };
 };
 

@@ -6,7 +6,7 @@ import {
   buildSearchAndDateFilter,
   buildTextScoreProjection,
 } from '../../utils/listQuery.js';
-import { buildPaginationMeta } from '../../utils/pagination.js';
+import { buildPaginationMeta, toSkip } from '../../utils/pagination.js';
 import { assertDoctorExists } from '../doctors/doctors.service.js';
 import { type Patient, type PatientCondition, PatientModel } from './patient.model.js';
 import type { ListPatientsQuery, UpdatePatientInput } from './patients.schemas.js';
@@ -63,21 +63,20 @@ export const buildPatientListQuery = ({ q, condition, doctor, from, to }: ListPa
 export const listPatients = async (
   query: ListPatientsQuery,
 ): Promise<{ items: PatientDto[]; meta: PaginationMeta }> => {
-  const { page, limit } = query;
   const { filter, projection, sort } = buildPatientListQuery(query);
 
   const [patients, total] = await Promise.all([
     PatientModel.find(filter, projection)
       .select(PATIENT_FIELDS)
       .sort(sort)
-      .skip((page - 1) * limit)
-      .limit(limit)
+      .skip(toSkip(query))
+      .limit(query.limit)
       .populate<Pick<PatientRecord, 'doctor'>>('doctor', DOCTOR_SUMMARY_FIELDS)
       .lean(),
     PatientModel.countDocuments(filter),
   ]);
 
-  return { items: patients.map(toPatientDto), meta: buildPaginationMeta({ page, limit }, total) };
+  return { items: patients.map(toPatientDto), meta: buildPaginationMeta(query, total) };
 };
 
 export const updatePatient = async (id: string, input: UpdatePatientInput): Promise<PatientDto> => {

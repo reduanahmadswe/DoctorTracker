@@ -6,7 +6,7 @@ import {
   buildSearchAndDateFilter,
   buildTextScoreProjection,
 } from '../../utils/listQuery.js';
-import { buildPaginationMeta } from '../../utils/pagination.js';
+import { buildPaginationMeta, toSkip } from '../../utils/pagination.js';
 import { PatientModel } from '../patients/patient.model.js';
 import { type Doctor, DoctorModel } from './doctor.model.js';
 import type { CreateDoctorInput, ListDoctorsQuery } from './doctors.schemas.js';
@@ -79,15 +79,14 @@ export const createDoctor = async (input: CreateDoctorInput): Promise<DoctorDto>
 export const listDoctors = async (
   query: ListDoctorsQuery,
 ): Promise<{ items: DoctorListItemDto[]; meta: PaginationMeta }> => {
-  const { page, limit } = query;
   const { filter, projection, sort } = buildDoctorListQuery(query);
 
   const [doctors, total] = await Promise.all([
     DoctorModel.find(filter, projection)
       .select(DOCTOR_FIELDS)
       .sort(sort)
-      .skip((page - 1) * limit)
-      .limit(limit)
+      .skip(toSkip(query))
+      .limit(query.limit)
       .lean(),
     DoctorModel.countDocuments(filter),
   ]);
@@ -98,7 +97,7 @@ export const listDoctors = async (
     patientCount: patientCounts.get(doctor._id.toString()) ?? 0,
   }));
 
-  return { items, meta: buildPaginationMeta({ page, limit }, total) };
+  return { items, meta: buildPaginationMeta(query, total) };
 };
 
 export const getDoctorFilterOptions = async (): Promise<{
