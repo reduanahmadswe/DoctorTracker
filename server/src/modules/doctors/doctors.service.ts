@@ -1,7 +1,11 @@
-import type { QueryFilter, SortOrder } from 'mongoose';
+import type { QueryFilter } from 'mongoose';
 import type { PaginationMeta } from '../../utils/apiResponse.js';
 import { ApiError } from '../../utils/ApiError.js';
-import { buildCreatedAtFilter } from '../../utils/dateRange.js';
+import {
+  buildListSort,
+  buildSearchAndDateFilter,
+  buildTextScoreProjection,
+} from '../../utils/listQuery.js';
 import { buildPaginationMeta } from '../../utils/pagination.js';
 import { PatientModel } from '../patients/patient.model.js';
 import { type Doctor, DoctorModel } from './doctor.model.js';
@@ -50,18 +54,12 @@ export const buildDoctorListQuery = ({
   from,
   to,
 }: ListDoctorsQuery) => {
-  const createdAt = buildCreatedAtFilter({ from, to });
   const filter: QueryFilter<Doctor> = {
-    ...(q && { $text: { $search: q } }),
+    ...buildSearchAndDateFilter({ q, from, to }),
     ...(specialization && { specialization }),
     ...(hospital && { hospital }),
-    ...(createdAt && { createdAt }),
   };
-  const projection = q ? { score: { $meta: 'textScore' as const } } : undefined;
-  const sort: Record<string, SortOrder | { $meta: 'textScore' }> = q
-    ? { score: { $meta: 'textScore' }, createdAt: -1 }
-    : { createdAt: -1 };
-  return { filter, projection, sort };
+  return { filter, projection: buildTextScoreProjection(q), sort: buildListSort(q) };
 };
 
 const countPatientsByDoctor = async (doctorIds: unknown[]): Promise<Map<string, number>> => {
