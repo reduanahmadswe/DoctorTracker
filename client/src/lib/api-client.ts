@@ -31,9 +31,13 @@ interface RequestOptions {
   skipUnauthorizedRedirect?: boolean;
 }
 
+// An expired or invalid cookie would make the proxy bounce /login back to /dashboard, so the
+// server is asked to clear it first (logout is idempotent) and only then is /login opened.
 const redirectToLogin = (): void => {
   if (typeof window === "undefined" || window.location.pathname === LOGIN_PATH) return;
-  window.location.assign(LOGIN_PATH);
+  void fetch(`${API_BASE}/auth/logout`, { method: "POST", credentials: "include" })
+    .catch(() => undefined)
+    .finally(() => window.location.assign(LOGIN_PATH));
 };
 
 const parseBody = async (response: Response): Promise<ApiSuccess<unknown> | ApiFailure | null> => {
